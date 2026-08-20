@@ -1,0 +1,30 @@
+# hack/kind-config.yaml
+#
+# Starting point for `kind create cluster --name <name> --config hack/kind-config.yaml`
+# — only relevant if the new cluster is itself a local kind cluster (delete this file
+# if it isn't). disableDefaultCNI: true — kind's default kindnet CNI silently ignores
+# every NetworkPolicy in this repo (confirmed live on both existing clusters in this
+# fleet, see gitops-cluster-dev's and gitops-cluster-kind-prod's own READMEs). Install
+# Calico, pinned to the same version already proven elsewhere in this fleet
+# (v3.29.1), before anything else touches the cluster — do not skip this step even
+# for a quick throwaway cluster.
+#
+# podSubnet deliberately identical to every other cluster in this fleet — each
+# cluster's pod CIDR only ever routes inside that cluster, so reusing the same range
+# across clusters on the shared podman "kind" bridge network causes no conflict.
+#
+# `name:` below is set by hack/customize-cluster.sh, NOT left as a placeholder for
+# you to fill in by hand — `kind create cluster --name X` always produces kubectl
+# context `kind-X`, so this is derived from cluster.yaml's own clusterName field
+# (stripping the "kind-" prefix) rather than asked for separately. If your
+# clusterName doesn't start with "kind-", the script leaves this file's name field
+# unset and flags it — kind's own naming convention doesn't unambiguously apply, edit
+# this file by hand in that case.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: __KIND_SHORT_NAME__
+networking:
+  disableDefaultCNI: true
+  podSubnet: "192.168.0.0/16"
+nodes:
+  - role: control-plane

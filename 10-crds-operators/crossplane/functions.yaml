@@ -1,0 +1,46 @@
+# Crossplane Function packages, pinned to the exact package references already
+# installed (`kubectl get functions.pkg.crossplane.io`). function-rollout-watcher is
+# the custom function from the ai-rollout prototype (github.com/jfillman) - kept as its
+# own GHCR package, reused (not rebuilt) per the "fold it in" decision - see
+# service-catalog-design.md's Argo Rollouts / AnalysisTemplate section once its
+# Composition usage is ported in Phase 2.
+apiVersion: pkg.crossplane.io/v1
+kind: Function
+metadata:
+  name: function-auto-ready
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: crds-operators
+spec:
+  package: xpkg.crossplane.io/crossplane-contrib/function-auto-ready:v0.7.0
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Function
+metadata:
+  name: function-go-templating
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: crds-operators
+spec:
+  package: xpkg.crossplane.io/crossplane-contrib/function-go-templating:v0.12.3
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Function
+metadata:
+  name: function-patch-and-transform
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: crds-operators
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/function-patch-and-transform:v0.7.0
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Function
+metadata:
+  name: function-rollout-watcher
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: crds-operators
+    platform.io/origin: ai-rollout
+spec:
+  package: ghcr.io/jfillman/function-rollout-watcher:v0.1.16

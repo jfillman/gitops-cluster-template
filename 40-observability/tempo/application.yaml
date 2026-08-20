@@ -1,0 +1,65 @@
+# Depends on minio/ (the `tempo` bucket) and kube-prometheus-stack/ (metricsGenerator's
+# remoteWriteUrl target) both being up first.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tempo
+  namespace: argocd
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: observability
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: tempo
+    targetRevision: 1.24.4
+    helm:
+      releaseName: tempo
+      valuesObject:
+        tempo:
+          storage:
+            trace:
+              backend: s3
+              s3:
+                bucket: tempo
+                endpoint: minio:9000
+                access_key: admin
+                secret_key: minioadmin123
+                insecure: true
+                forcepathstyle: true
+          # Tempo can receive OTLP directly - no collector hop strictly required, but
+          # the OTel Collector goes through it anyway so the app has one export target
+          # for traces+metrics+logs.
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: 0.0.0.0:4317
+                http:
+                  endpoint: 0.0.0.0:4318
+          # Powers the "Traces -> Metrics" link and the service graph in Grafana:
+          # Tempo derives RED metrics + service-graph edges from spans and
+          # remote-writes them.
+          metricsGenerator:
+            enabled: true
+            remoteWriteUrl: "http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090/api/v1/write"
+            processor:
+              span_metrics:
+                enable_target_info: true
+              service_graphs:
+                wait: 10s
+                max_items: 10000
+          global_overrides:
+            metrics_generator_processors:
+              - span-metrics
+              - service-graphs
+        persistence:
+          enabled: true
+          size: 10Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

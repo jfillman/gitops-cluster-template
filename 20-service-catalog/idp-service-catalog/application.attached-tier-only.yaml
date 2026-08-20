@@ -1,0 +1,41 @@
+# Alternate to this directory's own application.yaml, selected by
+# hack/customize-cluster.sh when cluster.yaml sets
+# components.serviceCatalog.scope: attached-tier-only (upper-env clusters, per
+# idp/docs/service-catalog-design.md §0 "Where Crossplane runs across a multi-cluster
+# fleet"). Bootstrap-tier XRDs (NodeJSApplication/ApplicationEnvironment) are pure
+# provider-github writers with no locality requirement - they stay centralized on the
+# fleet's one dev cluster permanently, regardless of fleet size, so they're excluded
+# here rather than installed and simply unused. Attached-tier XRDs (SLO, SecretStore,
+# RolloutWatch) compose native in-cluster resources directly and have to run wherever
+# the app actually is - real, live precedent: gitops-cluster-kind-prod's own copy of
+# this file, the first real upper-env cluster in this fleet.
+#
+# Explicit include list, not a wildcard (unlike the full-scope application.yaml this
+# replaces) - deliberately spells out exactly which XRD/Composition pairs are
+# Attached-tier today rather than trying to derive that from a naming convention.
+# Extend this list by hand as new Attached-tier XRDs are added to idp-service-catalog.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: idp-service-catalog
+  namespace: argocd
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: service-catalog
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/jfillman/idp-service-catalog.git
+    targetRevision: v0.3.35
+    path: .
+    directory:
+      recurse: true
+      include: "{xrds/slo.yaml,compositions/slo/composition.yaml,xrds/secretstore.yaml,compositions/secretstore/composition.yaml,xrds/rolloutwatch.yaml,compositions/rolloutwatch/composition.yaml}"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: crossplane-system
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

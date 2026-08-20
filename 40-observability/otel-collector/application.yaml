@@ -1,0 +1,143 @@
+# The fan-out gateway all app telemetry flows through - one OTLP endpoint for apps to
+# talk to, exported to Tempo (traces), Loki (logs), and re-exposed for Prometheus/Thanos
+# to scrape (metrics). Depends on tempo/ and loki/ (the exporters' endpoints) being up
+# first - metrics export doesn't need kube-prometheus-stack up first (Prometheus pulls,
+# it doesn't need to exist before the collector starts exposing :8889).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: otel-collector
+  namespace: argocd
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: observability
+spec:
+  project: default
+  source:
+    repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+    chart: opentelemetry-collector
+    targetRevision: 0.165.0
+    helm:
+      releaseName: otel-collector
+      valuesObject:
+        mode: deployment # gateway, not per-node daemonset - app telemetry only
+        image:
+          repository: otel/opentelemetry-collector-contrib # need "contrib" for loki/otlphttp exporters
+        serviceMonitor:
+          enabled: true
+          # The chart's default metricsEndpoints targets a Service port literally
+          # named "metrics" (the collector's own internal self-telemetry on 8888, not
+          # our pipeline's exported app metrics, which is ports.prometheus below) -
+          # has to be told explicitly to target that port name or it scrapes nothing.
+          metricsEndpoints:
+            - port: prometheus
+        ports:
+          otlp:
+            enabled: true
+            containerPort: 4317
+            servicePort: 4317
+            protocol: TCP
+          otlp-http:
+            enabled: true
+            containerPort: 4318
+            servicePort: 4318
+            protocol: TCP
+          prometheus:
+            enabled: true
+            containerPort: 8889
+            servicePort: 8889
+            protocol: TCP
+        config:
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: 0.0.0.0:4317
+                http:
+                  endpoint: 0.0.0.0:4318
+          processors:
+            memory_limiter:
+              check_interval: 5s
+              limit_mib: 400
+            batch:
+              timeout: 5s
+              send_batch_size: 1024
+            # Enriches every signal with k8s pod/namespace/node metadata.
+            k8sattributes:
+              passthrough: false
+              extract:
+                metadata:
+                  - k8s.pod.name
+                  - k8s.namespace.name
+                  - k8s.node.name
+          connectors:
+            # Feeds platform-cicd's pipelines-overview.json "Stage duration (p50/p95)"
+            # panel, which queries traces_span_metrics_duration_milliseconds_bucket -
+            # only exists once this connector runs. Ported from platform-cicd's
+            # kind-observe-specific patch (observability/kind-observe/
+            # otel-collector-values-patch.yaml), which this Application's base config
+            # was originally transcribed without. Metric name is
+            # "traces_span_metrics_*" (underscore), not matching the connector's own
+            # "spanmetrics" key - verified live by scraping :8889/metrics directly.
+            spanmetrics:
+              histogram:
+                explicit:
+                  buckets: [100ms, 500ms, 1s, 5s, 15s, 30s, 1m, 5m, 15m, 30m, 1h]
+              dimensions:
+                - name: platform.stage
+                - name: platform.chain_id
+                - name: governance.stub
+              metrics_flush_interval: 15s
+          exporters:
+            otlp/tempo:
+              endpoint: tempo.observability.svc.cluster.local:4317
+              tls:
+                insecure: true
+            otlphttp/loki:
+              # Loki's native OTLP log-ingestion endpoint
+              endpoint: http://loki-gateway.observability.svc.cluster.local/otlp
+              tls:
+                insecure: true
+            prometheus:
+              endpoint: 0.0.0.0:8889
+              # Keeps resource attributes (service.name etc.) as labels on the
+              # exported metrics.
+              resource_to_telemetry_conversion:
+                enabled: true
+              enable_open_metrics: true
+          service:
+            pipelines:
+              traces:
+                receivers: [otlp]
+                processors: [memory_limiter, k8sattributes, batch]
+                exporters: [otlp/tempo, spanmetrics]
+              logs:
+                receivers: [otlp]
+                processors: [memory_limiter, k8sattributes, batch]
+                exporters: [otlphttp/loki]
+              metrics:
+                receivers: [otlp, spanmetrics]
+                processors: [memory_limiter, k8sattributes, batch]
+                exporters: [prometheus]
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        clusterRole:
+          create: true
+          rules:
+            - apiGroups: [""]
+              resources: ["pods", "namespaces", "nodes"]
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["apps"]
+              resources: ["replicasets"]
+              verbs: ["get", "list", "watch"]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,100 @@
+# imagePullPolicy: Never - the image isn't in a registry yet, it's `kind load
+# image-archive`'d directly into kind-dev's containerd (see application.yaml's
+# header). Would need to change to a real pull policy once a registry pipeline
+# exists. Image ref needs the explicit `localhost/` prefix - confirmed live
+# (ErrImageNeverPull without it): containerd/podman cache locally-built,
+# unpushed images under that prefix, and Never pull policy requires an exact
+# reference match, not just a matching image ID.
+#
+# INFISICAL_ADMIN_TOKEN comes from infisical-bootstrap-secret's `token` key - the
+# chart's own autoBootstrap Job output (infisical/application.yaml), same namespace,
+# plain secretKeyRef.
+#
+# INFISICAL_ORG_ID: the JWT-claim decode main.py's get_org_id() tried first does NOT
+# work against a real token - confirmed live, the real instance-admin token's claims
+# are only {authTokenType, iat, identityAccessTokenId, identityId}, no
+# organizationId/orgId. Set explicitly instead, looked up the only way that does
+# work: GET /api/v1/identities/{identityId} (identityId decoded from the same JWT)
+# using the admin token itself, exec'd directly inside the Infisical pod (this
+# cluster's kubectl port-forward to Infisical was stale/broken at the time -
+# returned a generic {"status":200,"message":"ok"} for every path including
+# unauthenticated ones, actively misleading - in-pod exec bypassed it and gave real,
+# distinguishable responses, e.g. a genuine 401 without a token). This value is a
+# stable, one-time platform fact (this cluster's one permanent org, created once by
+# the bootstrap Job) - a committed constant here, not a workaround.
+# 9144c116-d1eb-4cea-bac9-9b5272035ea7 = the "idp" org's real id on kind-dev.
+#
+# INFISICAL_K8S_CA_CERT / INFISICAL_K8S_TOKEN_REVIEWER_JWT: from
+# infisical-token-reviewer-token (token-reviewer-rbac.yaml, same directory) - the
+# control plane auto-populates both keys once that annotated Secret exists, nothing
+# manual to create here unlike the two Secrets infisical/application.yaml documents.
+# ESO_SERVICEACCOUNT_NAME/NAMESPACE stay at main.py's own defaults ("external-secrets"
+# / "external-secrets") - confirmed live against this exact cluster (`kubectl get
+# deploy -n external-secrets -o jsonpath=...serviceAccountName` for the real
+# controller Deployment, not the cert-controller/webhook Deployments' separate SAs in
+# the same chart) - spelled out here anyway rather than left implicit, so a change to
+# ESO's chart values would have one obvious place to update.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: infisical-secretstore-operator
+  labels:
+    app: infisical-secretstore-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: infisical-secretstore-operator
+  template:
+    metadata:
+      labels:
+        app: infisical-secretstore-operator
+    spec:
+      serviceAccountName: infisical-secretstore-operator
+      containers:
+        - name: operator
+          image: localhost/infisical-secretstore-operator:dev
+          imagePullPolicy: Never
+          env:
+            # kopf's own peering-identity detection calls Python's getpass.getuser(),
+            # which crashes (OSError: No username set in the environment) when running
+            # as a bare numeric UID with no /etc/passwd entry - confirmed live. USER
+            # satisfies getpass without needing an image change or a passwd entry.
+            - name: USER
+              value: infisical-secretstore-operator
+            - name: INFISICAL_API_URL
+              value: http://infisical-infisical-standalone-infisical.infisical.svc.cluster.local:8080
+            - name: INFISICAL_ORG_ID
+              value: "9144c116-d1eb-4cea-bac9-9b5272035ea7"
+            - name: INFISICAL_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: infisical-bootstrap-secret
+                  key: token
+            - name: INFISICAL_K8S_CA_CERT
+              valueFrom:
+                secretKeyRef:
+                  name: infisical-token-reviewer-token
+                  key: ca.crt
+            - name: INFISICAL_K8S_TOKEN_REVIEWER_JWT
+              valueFrom:
+                secretKeyRef:
+                  name: infisical-token-reviewer-token
+                  key: token
+            - name: ESO_SERVICEACCOUNT_NAMESPACE
+              value: external-secrets
+            - name: ESO_SERVICEACCOUNT_NAME
+              value: external-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            capabilities:
+              drop: ["ALL"]

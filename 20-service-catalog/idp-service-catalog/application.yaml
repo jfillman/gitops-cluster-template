@@ -1,0 +1,61 @@
+# Pins idp-service-catalog's XRDs + Compositions - the cluster-installed-once
+# raw-manifest layer - to a git tag. "git source, pinned to a tag" is the
+# mechanism idp/docs/gitops-strategy.md §8 specifies for this repo, reusing
+# the directory-source pattern already proven for
+# 10-crds-operators/crossplane/packages-application.yaml (raw manifests, not
+# a Helm chart) - just sourced from idp-service-catalog itself instead of
+# this repo.
+#
+# Deliberately a narrow include glob rather than an exclude list (unlike
+# packages-application.yaml's directory.exclude): idp-service-catalog's own
+# compositions/<name>/ folders carry maintainer-only siblings alongside each
+# generated composition.yaml - templates/*.yaml source fragments (not valid
+# standalone manifests, they're Go-template text with unquoted `<<...>>`
+# actions), example/ XR fixtures (one, xr-invalid.yaml, is deliberately
+# invalid), and build-composition.sh. Listing exactly what's real avoids ever
+# needing to extend an exclude list as future catalog items add their own
+# non-manifest siblings the same way.
+#
+# charts/idp-application and functions/ are deliberately NOT included here:
+# the chart isn't installed cluster-wide - Compositions render it per
+# app-release into gitops-<app-name> repos, see idp-application/README.md -
+# and Function packages are already registered by pinned OCI tag in
+# 10-crds-operators/crossplane/functions.yaml, not by syncing functions/'s
+# own source directories.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: idp-service-catalog
+  namespace: argocd
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: service-catalog
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/jfillman/idp-service-catalog.git
+    # 2026-08-19: bumped from v0.3.24, found live stuck there while chasing an
+    # unrelated registry-credentials sync failure - checkout-api-dev's own
+    # idp-application chart (pinned separately, in
+    # 02-argocd-apps/tenant-appprojects/chart/templates/
+    # lower-envs-applicationset.yaml, already at v0.3.35) renders a RolloutWatch
+    # XR unconditionally whenever a release has a workload, but this
+    # Application - the thing that actually installs the RolloutWatch XRD/
+    # Composition - had never synced past v0.3.24, which predates that XRD's
+    # addition (v0.3.27) entirely: `kubectl get crd rolloutwatches.catalog.
+    # idp.io` returned NotFound on kind-dev. v0.3.24..v0.3.35's only xrds/
+    # compositions/ diff is that one addition (checked via `git diff --stat`) -
+    # a clean, additive-only bump, not a version chosen at random.
+    targetRevision: v0.3.35
+    path: .
+    directory:
+      recurse: true
+      include: "{xrds/*.yaml,compositions/*/composition.yaml}"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: crossplane-system
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

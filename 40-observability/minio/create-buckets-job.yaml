@@ -1,0 +1,33 @@
+# Works around a real, confirmed upstream bug in minio/minio (charts.min.io) 5.4.0:
+# its own post-install Job's init script (templates/configmap.yaml's `initialize`
+# data key) DEFINES a createBucket() shell function but never actually CALLS it for
+# any configured `buckets:` entry - confirmed via a clean `helm template` render
+# with no other explanation (not a values mistake, not a deployment artifact - the
+# function invocation is simply absent from the rendered template). Result: minio
+# comes up healthy with zero buckets, and Tempo/Loki crash-loop forever on "bucket
+# does not exist" since the chart's own automation silently never creates them.
+#
+# Picked up automatically by minio-secrets' directory-source Application alongside
+# thanos-objstore-secret.yaml (its exclude list only excludes the two Application
+# objects themselves, not this file) - no separate Application needed.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-create-buckets
+  namespace: observability
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: quay.io/minio/mc:RELEASE.2024-11-21T17-21-54Z
+          command:
+            - /bin/sh
+            - -c
+            - |
+              mc alias set myminio http://minio:9000 admin minioadmin123 &&
+              mc mb --ignore-existing myminio/thanos &&
+              mc mb --ignore-existing myminio/loki &&
+              mc mb --ignore-existing myminio/tempo

@@ -1,0 +1,35 @@
+# Git HEAD source (not a version-pinned tag) - matches how
+# tenant-onboarding-applicationset.yaml's own source 0 already tracks
+# platformCicdRepoUrl at `main`.
+#
+# tektonChainsNamespace: tekton-pipelines - must match tekton-operator/tektonconfig.yaml's
+# own spec.targetNamespace exactly, or verify-image-provenance.yaml/
+# verify-sast-attestation.yaml's cosign identity-regexp check fails every real build (see
+# tekton-operator/README.md). Set here AND in platform-cicd-control-plane/
+# values-kind-dev.yaml - same value, two charts, kept in sync deliberately.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-cicd-catalog
+  namespace: argocd
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: platform-cicd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/jfillman/platform-cicd.git
+    targetRevision: main
+    path: charts/platform-cicd-catalog
+    helm:
+      releaseName: platform-cicd-catalog
+      valuesObject:
+        tektonChainsNamespace: tekton-pipelines
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform-catalog
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

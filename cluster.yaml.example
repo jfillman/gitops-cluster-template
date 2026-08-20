@@ -1,0 +1,89 @@
+# cluster.yaml.example
+#
+# Copy this file to cluster.yaml (git-ignored — see .gitignore) and edit it, then run
+# hack/customize-cluster.sh. cluster.yaml is the single declarative input the script
+# reads: it drives which literal names get substituted throughout this repo and which
+# optional component directories survive. It is NOT committed to the customized repo
+# afterward (the script deletes it once customization is done) — the substituted
+# manifests themselves are the record of what was chosen, same as every other config
+# in this platform, not a second parallel source of truth that could drift from them.
+#
+# See idp/docs/cluster-provisioning.md for the full design and the invariants this
+# schema encodes.
+
+# The kubectl context name for the new cluster, e.g. kind-staging. Also becomes the
+# cluster-registry entry name (gitops-cluster-dev/00-bootstrap/cluster-registry/
+# <clusterName>.yaml) and feeds every per-cluster identity string in this repo
+# (Infisical project slugs, ArgoCD repo-creds naming, etc).
+clusterName: kind-staging
+
+# The GitHub repo name this customized checkout will be pushed to, e.g.
+# gitops-cluster-kind-staging. Deliberately an explicit field, not derived from
+# clusterName — the two existing real repos don't follow one consistent rule
+# (gitops-cluster-dev drops the "kind-" prefix its own clusterName kind-dev carries;
+# gitops-cluster-kind-prod keeps it), so guessing would get it wrong as often as
+# right. Pick whatever you'll actually name the new GitHub repo.
+clusterRepoName: gitops-cluster-kind-staging
+
+# dev | upper — required, no default. Matches the cluster-registry ConfigMap's own
+# `type` field (idp/docs/gitops-strategy.md's "Forward-looking" section /
+# service-catalog-design.md §0). Gates the hard invariants below: a type: upper
+# cluster can never enable components.crossplane.providerGithub or
+# components.platformCicd, because Bootstrap-tier XRDs and platform-cicd's own control
+# plane are permanently centralized on the fleet's one dev cluster regardless of fleet
+# size. hack/customize-cluster.sh refuses to proceed rather than silently correcting a
+# violation of this.
+type: upper
+
+# Defaults to <clusterRepoName>-tenants (this repo's own name, minus "gitops-cluster-",
+# with "-tenants" appended) via the same substitution the script applies to every
+# gitops-cluster-dev self-reference in this repo. Override only if you need to break
+# that convention on purpose (gitops-cluster-dev's own tenants repo, gitops-cluster-
+# dev-tenants, is the one existing exception — a historical name kept because renaming
+# a live, already-wired repo was judged too disruptive; new clusters should follow the
+# convention, not repeat the exception).
+tenantsRepo: gitops-cluster-kind-staging-tenants
+
+argocd:
+  # Pinned, never "latest" — see 01-argocd-platform/install.yaml's own header for why.
+  # This field is documentation of what's vendored, not something the script derives
+  # install.yaml from — install.yaml is ~34k lines of rendered chart output, version-
+  # specific in ways a find/replace can't safely touch. To pin a different ArgoCD
+  # version, regenerate install.yaml yourself before running customize-cluster.sh (see
+  # that file's own header for the exact command) and update this field to match.
+  chartVersion: "10.3.2"
+  appVersion: "v3.5.0"
+
+components:
+  crossplane:
+    enabled: true               # always true today — every cluster in this fleet runs Crossplane
+    providerGithub: false        # type: upper MUST be false — see the invariant above
+    providerKubernetes: true     # always true — every Attached-tier XRD needs this
+  certManager: true
+  externalSecrets: true
+  # Which cluster runs the actual Infisical server. Exactly one cluster in the fleet
+  # should ever set this true (idp/docs/gitops-strategy.md's infisicalHost note on
+  # kind-dev's own cluster-registry entry) — every other cluster is a remote consumer,
+  # authenticating to that one instance via Universal Auth instead of running its own.
+  secrets:
+    infisicalHost: false
+  argoRollouts: true
+  contour: true
+  sloth: true
+  serviceCatalog:
+    enabled: true
+    # full: every XRD/Composition in idp-service-catalog, including Bootstrap-tier
+    #   (NodeJSApplication/ApplicationEnvironment) — dev cluster only, matches the
+    #   providerGithub invariant above (Bootstrap-tier XRDs are pure provider-github
+    #   writers).
+    # attached-tier-only: just the XRDs that compose native in-cluster resources
+    #   directly (SLO, SecretStore, RolloutWatch today) — required on every upper
+    #   cluster, since those have no meaning without Crossplane actually running
+    #   where the resource lands. See idp/docs/service-catalog-design.md §0.
+    scope: attached-tier-only
+  policy: false                  # 30-policy/ has no real content yet on any cluster (Kyverno, not built)
+  observability: true
+  # platform-cicd's own control plane (Tekton/PaC/the CDEvents broker) — type: upper
+  # MUST be false, same invariant as providerGithub above. Only ever true on the one
+  # dev cluster that runs it (today: kind-dev).
+  platformCicd: false

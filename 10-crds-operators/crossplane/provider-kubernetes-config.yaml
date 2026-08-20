@@ -1,0 +1,74 @@
+# provider-kubernetes was installed (providers.yaml) but never actually configured -
+# no ClusterProviderConfig existed at all until the SecretStore Composition
+# (service-catalog-design.md Item 8) needed it: Crossplane v2 rejects composing a
+# cluster-scoped native resource (ClusterSecretStore) directly from a namespaced XR
+# (confirmed live: "cannot apply cluster scoped composed resource... for a
+# namespaced composite resource") - same restriction NodeJSApplication's own
+# provider-github already hit for Cluster-scoped repo resources, same fix: the
+# namespaced managed-resource family (kubernetes.m.crossplane.io's `Object`, not
+# kubernetes.crossplane.io's), wrapping the actual cluster-scoped manifest inside
+# spec.forProvider.manifest rather than composing it as a first-class Crossplane
+# resource.
+#
+# credentials.source: InjectedIdentity - applying to the SAME cluster Crossplane's
+# own controller runs on, not a remote one, so no kubeconfig/Secret needed, same
+# "no live cluster credential" instinct already used everywhere else in this catalog.
+#
+# name: default - matches objects.kubernetes.m.crossplane.io's own schema default
+# for spec.providerConfigRef (confirmed via `kubectl get crd -o json`), so
+# Compositions using this provider don't need to set providerConfigRef explicitly.
+apiVersion: kubernetes.m.crossplane.io/v1alpha1
+kind: ClusterProviderConfig
+metadata:
+  name: default
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: crds-operators
+spec:
+  credentials:
+    source: InjectedIdentity
+---
+# provider-kubernetes's own controller ServiceAccount needs RBAC on whatever it's
+# asked to apply via an Object's spec.forProvider.manifest (ClusterSecretStore, for
+# the SecretStore Composition) - its package-manager-granted ClusterRole
+# (crossplane:provider:provider-kubernetes-<revision>:system) only covers its OWN
+# API types (Object, ProviderConfig, etc.), confirmed live via `kubectl get
+# clusterrole ... -o yaml`, same gap `native-resources-rbac.yaml` already documents
+# for Crossplane's own core controller, but for a DIFFERENT controller/ServiceAccount
+# entirely.
+#
+# Binds directly to the current revision-suffixed ServiceAccount name
+# (provider-kubernetes-f6665ef36536), not a stable aggregation label - confirmed
+# live that this provider's ClusterRoleBinding targets that exact name directly
+# with no separate stable aggregate-target role the way Crossplane's own core
+# controller has (rbac.crossplane.io/aggregate-to-crossplane). Real, accepted
+# fragility: this binding needs updating if provider-kubernetes is ever
+# reinstalled/upgraded to a new ProviderRevision (new random suffix) - not solved
+# here, no better hook point exists to solve it with.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: provider-kubernetes-applied-resources
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: crds-operators
+rules:
+  - apiGroups: ["external-secrets.io"]
+    resources: ["clustersecretstores", "clustersecretstores/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: provider-kubernetes-applied-resources
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: crds-operators
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: provider-kubernetes-applied-resources
+subjects:
+  - kind: ServiceAccount
+    name: provider-kubernetes-f6665ef36536
+    namespace: crossplane-system

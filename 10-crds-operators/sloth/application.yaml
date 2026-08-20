@@ -1,0 +1,62 @@
+# Sloth (sloth.dev) - watches PrometheusServiceLevel CRs and generates the
+# multiwindow-multi-burn-rate PrometheusRule (recording + alerting rules) for
+# each. The SLO Composition (idp-service-catalog/compositions/slo/) generates
+# a PrometheusServiceLevel per SLO XR instead of hand-rolling that PromQL
+# itself - see service-catalog-design.md Item 4's revision history for why
+# the switch. Not published to a Helm chart repo (no `charts.slok.dev` or
+# similar) - installed straight from its own git repo path, same mechanism
+# ArgoCD uses for any Helm chart, just sourced from a plain git repo instead
+# of a chart repo.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sloth
+  namespace: argocd
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: crds-operators
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/slok/sloth.git
+    targetRevision: v0.16.0
+    path: deploy/kubernetes/helm/sloth
+    helm:
+      releaseName: sloth
+      valuesObject:
+        # The community SLI plugins git-sync sidecar isn't needed - every SLI
+        # this catalog generates is a plain events{errorQuery,totalQuery} pair,
+        # not a plugin reference.
+        commonPlugins:
+          enabled: false
+        sloth:
+          # Compliance/error-budget window is a controller-wide default, not
+          # a per-SLO field on PrometheusServiceLevel (confirmed against the
+          # real CRD schema - no window field under spec.slos[] at all). Every
+          # SLO on this cluster shares this window unless/until the
+          # `AlertWindows`/customSloConfig plugin mechanism is adopted for
+          # per-SLO periods - not done this pass.
+          defaultSloPeriod: 30d
+          # Stamps release=kube-prometheus-stack onto every individual
+          # recording/alert RULE's own `labels:` (confirmed live) - useful for
+          # anyone querying these metrics directly, but NOT what makes
+          # Prometheus load the rules at all. That needs the generated
+          # PrometheusRule K8s OBJECT's own metadata.labels to carry
+          # release=kube-prometheus-stack (Prometheus's ruleSelector matches
+          # on the object, not on a rule's labels) - Sloth propagates that
+          # from the *input* PrometheusServiceLevel CR's own metadata.labels
+          # (confirmed live by reading internal/plugin/k8stransform/
+          # prom_operator_prometheus_rule_v1/plugin.go and
+          # internal/app/kubecontroller/handler.go), so the SLO Composition
+          # itself stamps metadata.labels: {release: kube-prometheus-stack}
+          # on every PrometheusServiceLevel it generates - see
+          # idp-service-catalog/compositions/slo/templates/
+          # prometheusservicelevel.yaml.
+          extraLabels:
+            release: kube-prometheus-stack
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sloth-system
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

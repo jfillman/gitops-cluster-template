@@ -1,0 +1,30 @@
+# Vendored, pinned manifest (install.yaml in this directory,
+# https://raw.githubusercontent.com/projectcontour/contour/release-1.32/examples/render/contour.yaml)
+# - the cluster's ingress controller, namespace `projectcontour` (confirmed live
+# from this exact manifest - idp-application's own
+# networkPolicy.ingressControllerNamespaceSelector had `ingress-nginx` as an
+# explicitly-flagged, unconfirmed placeholder guess; this is the real value,
+# see idp-service-catalog's fix for that chart).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: contour
+  namespace: argocd
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: crds-operators
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/jfillman/gitops-cluster-dev.git
+    targetRevision: main
+    path: 10-crds-operators/contour
+    directory:
+      exclude: "{application.yaml}"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: projectcontour
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
