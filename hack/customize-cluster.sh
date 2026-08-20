@@ -53,6 +53,15 @@ case "${TYPE}" in
 esac
 [ "${TENANTS_REPO}" != "null" ] && [ -n "${TENANTS_REPO}" ] || die "tenantsRepo is required in ${CONFIG}."
 
+SCM_HOST="$(yq -r '.scm.host' "${CONFIG}")"
+SCM_OWNER="$(yq -r '.scm.owner' "${CONFIG}")"
+REGISTRY_HOST="$(yq -r '.registry.host' "${CONFIG}")"
+REGISTRY_OWNER="$(yq -r '.registry.owner' "${CONFIG}")"
+[ "${SCM_HOST}" != "null" ] && [ -n "${SCM_HOST}" ] || die "scm.host is required in ${CONFIG}."
+[ "${SCM_OWNER}" != "null" ] && [ -n "${SCM_OWNER}" ] || die "scm.owner is required in ${CONFIG}."
+[ "${REGISTRY_HOST}" != "null" ] && [ -n "${REGISTRY_HOST}" ] || die "registry.host is required in ${CONFIG}."
+[ "${REGISTRY_OWNER}" != "null" ] && [ -n "${REGISTRY_OWNER}" ] || die "registry.owner is required in ${CONFIG}."
+
 yq_bool() { yq -r "$1" "${CONFIG}"; }
 
 PROVIDER_GITHUB="$(yq_bool '.components.crossplane.providerGithub')"
@@ -195,6 +204,19 @@ substitute() {
   grep -rl --null -F "${from}" . --exclude-dir=.git --exclude-dir=hack --exclude=cluster.yaml --exclude=cluster.yaml.example 2>/dev/null \
     | xargs -0 sed -i '' "s|${from}|${to}|g"
 }
+
+# SCM/registry host+owner, longest/most-specific literal first (same reasoning as
+# below): the full https:// repoURL prefix, then the bare no-protocol prose form
+# (functions.yaml's own "(github.com/jfillman)" comment), then the registry form,
+# then a bare-owner catch-all for what's left (argocd-repo-creds-jfillman's own
+# resource name, provider-github-config.yaml's credential-JSON example comment).
+# Deliberately NOT a bare "github.com" replace — this repo also vendors real,
+# unrelated third-party repoURLs (10-crds-operators/sloth/application.yaml's
+# https://github.com/slok/sloth.git) that must stay exactly as they are.
+substitute "https://github.com/jfillman/" "https://${SCM_HOST}/${SCM_OWNER}/"
+substitute "github.com/jfillman" "${SCM_HOST}/${SCM_OWNER}"
+substitute "ghcr.io/jfillman/" "${REGISTRY_HOST}/${REGISTRY_OWNER}/"
+substitute "jfillman" "${SCM_OWNER}"
 
 substitute "gitops-cluster-dev-tenants" "${TENANTS_REPO}"
 substitute "gitops-cluster-dev" "${CLUSTER_REPO_NAME}"

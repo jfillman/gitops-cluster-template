@@ -44,6 +44,29 @@ type: upper
 # convention, not repeat the exception).
 tenantsRepo: gitops-cluster-kind-staging-tenants
 
+# Every repoURL in this template (self-references AND fixed platform dependencies like
+# idp-service-catalog/platform-cicd) is hardcoded to https://github.com/jfillman/... -
+# this section makes both the host and the owner/org configurable, e.g. for forking
+# this platform to a different GitHub account or a self-hosted GitLab/GHE instance.
+# Substitution is scoped to the exact "github.com/jfillman" literal (with and without
+# the https:// prefix, for prose mentions) - NOT a bare "github.com" replace, which
+# would also wrongly rewrite genuinely third-party upstream repoURLs this template
+# vendors from (e.g. 10-crds-operators/sloth/application.yaml's own
+# https://github.com/slok/sloth.git, and plain comment mentions of
+# github.com/argoproj/argo-cd or github.com/crossplane-contrib/*).
+scm:
+  host: github.com
+  owner: jfillman
+
+# ghcr.io/jfillman/function-rollout-watcher - the one org-owned container image this
+# template references directly (10-crds-operators/crossplane/functions.yaml). Public,
+# third-party OCI/chart registries used throughout this repo (xpkg.upbound.io,
+# charts.external-secrets.io, dl.cloudsmith.io, etc) are NOT touched by this - they're
+# shared upstream sources, not something a fork of this platform would own a copy of.
+registry:
+  host: ghcr.io
+  owner: jfillman
+
 argocd:
   # Pinned, never "latest" — see 01-argocd-platform/install.yaml's own header for why.
   # This field is documentation of what's vendored, not something the script derives
