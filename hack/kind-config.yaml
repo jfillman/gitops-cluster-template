@@ -28,3 +28,18 @@ networking:
   podSubnet: "192.168.0.0/16"
 nodes:
   - role: control-plane
+    # Forwards host 80/443 to the envoy Service's fixed NodePorts (see
+    # 10-crds-operators/contour/kustomization.yaml, which patches envoy from
+    # LoadBalancer to NodePort 30080/30443 for exactly this reason - no LoadBalancer
+    # implementation exists on kind, so a plain LoadBalancer Service sits <pending>
+    # forever with no host-reachable path in at all). These mappings are baked into
+    # the node container at `kind create cluster` time and can't be added to a
+    # running cluster - if you're retrofitting this onto an existing cluster, it
+    # requires a full recreate, not a config edit.
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 30443
+        hostPort: 443
+        protocol: TCP

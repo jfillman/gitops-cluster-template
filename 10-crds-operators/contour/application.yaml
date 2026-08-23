@@ -15,12 +15,15 @@ metadata:
     platform.io/subcomponent: crds-operators
 spec:
   project: default
+  # No `directory:` block (was `exclude: "{application.yaml}"`) - this directory now
+  # carries a kustomization.yaml (patches envoy's Service to NodePort, see that file's
+  # own header), which ArgoCD auto-detects and uses instead of plain-directory mode.
+  # kustomization.yaml's own `resources: [install.yaml]` already excludes
+  # application.yaml by simply not listing it, so the exclude pattern is redundant now.
   source:
     repoURL: https://github.com/jfillman/gitops-cluster-dev.git
     targetRevision: main
     path: 10-crds-operators/contour
-    directory:
-      exclude: "{application.yaml}"
   destination:
     server: https://kubernetes.default.svc
     namespace: projectcontour
