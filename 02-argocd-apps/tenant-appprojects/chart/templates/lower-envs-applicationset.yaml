@@ -73,9 +73,12 @@ spec:
         platform.io/app: {{ .Values.appName }}
         platform.io/env: "{{ "{{" }}.envName{{ "}}" }}"
         platform.io/env-tier: lower
-      # Cascade-deletes this env's real resources if the developer removes their own
-      # platform/envs/<file>.yaml - same finalizer/reasoning used by every other
-      # generated Application in this design.
+      # Cascade-deletes this env's real resources, AND the namespace itself, if the
+      # developer removes their own platform/envs/<file>.yaml - idp-application now
+      # renders an explicit Namespace object (v0.3.40+, see that chart's own
+      # templates/namespace/namespace.yaml header), tracked and pruned like any other
+      # resource instead of only existing via CreateNamespace=true. Same finalizer/
+      # reasoning used by every other generated Application in this design.
       finalizers:
         - resources-finalizer.argocd.argoproj.io
       namespace: argocd-apps
@@ -112,13 +115,20 @@ spec:
         # registered git credentials for private app repos like checkout-api - see
         # argocd-repo-creds-jfillman, this namespace).
         - repoURL: {{ .Values.idpServiceCatalogRepoUrl }}
-          targetRevision: v0.3.35
+          targetRevision: v0.3.40
           path: charts/idp-application
           helm:
             valuesObject:
               appName: {{ .Values.appName }}
               cluster: kind-dev
               envName: "{{ "{{" }}.envName{{ "}}" }}"
+              # Moved here from managedNamespaceMetadata.labels (removed below) - an
+              # explicit Namespace manifest (idp-application v0.3.40+) overwrites
+              # managedNamespaceMetadata rather than merging with it, so it's a no-op
+              # once the chart renders its own Namespace object.
+              namespace:
+                labels:
+                  platform.io/managed-secrets: "true"
             valueFiles:
               # Confirmed live (two real failures getting here, both left as history
               # in this comment since the exact shape of ArgoCD's git-files-generator
@@ -155,15 +165,8 @@ spec:
         automated:
           selfHeal: true
         syncOptions:
+          # Harmless to leave set - a no-op once idp-application's own Namespace
+          # manifest already declares the namespace (only fires when the destination
+          # namespace isn't in the source manifests at all).
           - CreateNamespace=true
-        # Lets platform-cicd's registry-credentials ClusterExternalSecret select this
-        # namespace automatically - a real, separate gap found live 2026-08-19:
-        # this ApplicationSet creates the actual app-<appName>-<envName> namespace
-        # (unlike tenant-onboarding/applicationset.yaml, which only covers the
-        # app-<appName>-cicd one), but never got this label when the mechanism was
-        # built. Re-applied every sync (only takes effect alongside
-        # CreateNamespace=true), so it also lands on already-existing namespaces.
-        managedNamespaceMetadata:
-          labels:
-            platform.io/managed-secrets: "true"
 {{- end }}

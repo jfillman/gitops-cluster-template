@@ -92,13 +92,20 @@ spec:
       project: "{{.appName}}"
       sources:
         - repoURL: https://github.com/jfillman/idp-service-catalog.git
-          targetRevision: v0.3.37
+          targetRevision: v0.3.40
           path: charts/idp-application
           helm:
             valuesObject:
               appName: "{{.appName}}"
               cluster: kind-dev
               envName: "{{.env}}"
+              # Moved here from managedNamespaceMetadata.labels (removed below) - an
+              # explicit Namespace manifest (idp-application v0.3.40+) overwrites
+              # managedNamespaceMetadata rather than merging with it, so it's a no-op
+              # once the chart renders its own Namespace object.
+              namespace:
+                labels:
+                  platform.io/managed-secrets: "true"
             valueFiles:
               # $-ref value files resolve relative to that source's checkout ROOT -
               # confirmed live in platform-cicd's own version of this pattern.
@@ -119,30 +126,26 @@ spec:
         automated:
           selfHeal: true
         syncOptions:
+          # Harmless to leave set - a no-op once idp-application's own Namespace
+          # manifest already declares the namespace (only fires when the destination
+          # namespace isn't in the source manifests at all).
           - CreateNamespace=true
-        # Lets the registry-credentials ClusterExternalSecret
-        # (platform-cicd's control-plane chart, templates/secretstore/
-        # registry-credentials-cluster-external-secret.yaml) select this namespace
-        # automatically - mirrors platform-cicd's own
-        # tenant-onboarding-applicationset.yaml. Re-applied every sync (only takes
-        # effect alongside CreateNamespace=true), so it also lands on already-existing
-        # namespaces.
-        managedNamespaceMetadata:
-          labels:
-            platform.io/managed-secrets: "true"
   templatePatch: |
     {{- if hasKey . "configMapGenerator" }}
     {{- if .configMapGenerator }}
     spec:
       sources:
         - repoURL: https://github.com/jfillman/idp-service-catalog.git
-          targetRevision: v0.3.37
+          targetRevision: v0.3.40
           path: charts/idp-application
           helm:
             valuesObject:
               appName: "{{.appName}}"
               cluster: kind-dev
               envName: "{{.env}}"
+              namespace:
+                labels:
+                  platform.io/managed-secrets: "true"
             valueFiles:
               - $appsrc/kind-dev/{{.env}}/values.yaml
         - repoURL: "{{.gitopsRepoUrl}}"
