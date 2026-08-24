@@ -7,31 +7,28 @@
 # (`[ "${PLATFORM_CICD}" = "true" ] || prune "50-platform-cicd"`). No script change was
 # needed to wire that up; nesting here was enough.
 #
-# Multi-source, mirroring platform-cicd-control-plane/application.yaml's own $ref
-# pattern exactly (see that file's header for the full rationale): source 0 is the
-# published chart, source 1 is $ref'd purely to read values-kind-dev.yaml from THIS
-# repo. "kind-dev" here gets rewritten to this cluster's own clusterName by
-# hack/customize-cluster.sh's generic substitute() sweep, same as every other kind-dev
-# reference in this template - no script change needed for that either.
+# SINGLE shared `testkube` namespace, deliberately - not one per tenant. Cross-namespace
+# TestWorkflow execution (testkube-api.executionNamespaces/multinamespace) is gated in
+# Testkube's own source as a Pro/Enterprise-only feature: cmd/api-server/main.go's own
+# comment reads "// Pro edition only (tcl protected code)" immediately above the check
+# that hard-exits with "execution namespaces: feature is not supported in standalone
+# mode" whenever executionNamespaces is set and the process isn't connected to a
+# licensed Control Plane (mode == common.ModeAgent, which requires a real
+# TestkubeProAPIKey/TestkubeProAgentRegToken). Confirmed live on kind-dev 2026-08-24.
+# CE genuinely cannot run workflows inside each app's own app-<appName>-cicd namespace;
+# don't reintroduce executionNamespaces/multinamespace config here without first
+# getting a real Testkube Cloud/Pro/Enterprise connection.
 #
-# Why the values file, not just inline valuesObject: Testkube enforces
-# testkube-api.executionNamespaces / additionalNamespaces as a hard runtime allow-list
-# in code (kubeshop/testkube pkg/testworkflows/executionworker/kubernetesworker/
-# worker.go: "namespace %s not supported" - confirmed by reading the actual source, not
-# assumed from docs). There's no wildcard/dynamic-discovery option. So this list is
-# real, per-cluster state - which onboarded tenants' <type>-<appName>-cicd namespaces
-# Testkube is allowed to run TestWorkflows in. Unlike platform-cicd-control-plane's
-# values file (which needs live Fulcio/CA material a template can't pre-commit), this
-# one has no secret material and starts as a trivially empty list - see
-# values-kind-dev.yaml alongside this file. Adding a tenant means adding its -cicd
-# namespace here, same reviewed-PR motion as adding tenants/<app-name>/identity.yaml
-# (see platform-cicd's docs/admin/onboarding-mechanics.md step 3).
-#
-# RBAC: deliberately NOT a hand-rolled ClusterRole. testkube-api's chart already
-# generates a namespace-scoped Role+RoleBinding per executionNamespaces entry,
-# scoped to exactly the namespaces listed in values-kind-dev.yaml - narrower than a
-# cluster-wide grant would be, and centrally driven by this one file rather than
-# scattered across each tenant's own onboarding chart.
+# So application secrets reach a TestWorkflow a different way: the `test` Pipeline's
+# Task (running as that tenant's own pipeline-runner, which already reads
+# app-<appName>-cicd's app-secrets Secret) materializes the relevant key/values into a
+# Secret inside THIS shared testkube namespace before triggering the run, and the
+# TestWorkflow's own spec references it via a standard env[].valueFrom.secretKeyRef
+# (plain Kubernetes pod-spec passthrough, not a Pro-gated feature). Exactly how a given
+# tenant's pipeline-runner is allowed to write into this ONE shared namespace without
+# being able to clobber another tenant's secret-by-the-same-name is a real,
+# not-yet-settled multi-tenant blast-radius question - see platform-cicd's tracking of
+# this (not yet a Task rewrite; the Testkube install itself is what this file adds).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -42,47 +39,28 @@ metadata:
     platform.io/subcomponent: platform-cicd
 spec:
   project: default
-  sources:
-    - repoURL: https://kubeshop.github.io/helm-charts
-      chart: testkube
-      targetRevision: "2.12.2"
-      helm:
-        releaseName: testkube
-        valuesObject:
-          # Postgres instead of the chart's default Mongo backend - live-verified 2026-
-          # 08-24 that testkube-mongodb (docker.io/kubeshop/bitnami-mongodb:8.3.4)
-          # hard-refuses to start on this fleet's kind-node kernel: "MongoDB cannot
-          # start: Linux kernel versions 6.19 and newer has a known incompatibility
-          # with this version of MongoDB" (jira.mongodb.org/browse/SERVER-121912). Not
-          # a values mistake, an upstream Mongo/kernel gate - kept as a chart-level
-          # default here (not per-cluster values-kind-dev.yaml state) since every kind
-          # cluster on this fleet's host shares the same kernel. Postgres is the
-          # chart's own first-class alternative backend (postgresql.enabled), not a
-          # workaround bolted on from outside it. If a future cluster genuinely runs on
-          # a different host with an older kernel, override back to Mongo in that
-          # cluster's own values-kind-dev.yaml (this Application's second source), not
-          # by re-editing this file.
+  source:
+    repoURL: https://kubeshop.github.io/helm-charts
+    chart: testkube
+    targetRevision: "2.12.2"
+    helm:
+      releaseName: testkube
+      valuesObject:
+        # Postgres instead of the chart's default Mongo backend - live-verified 2026-
+        # 08-24 that testkube-mongodb (docker.io/kubeshop/bitnami-mongodb:8.3.4)
+        # hard-refuses to start on this fleet's kind-node kernel (6.19+,
+        # jira.mongodb.org/browse/SERVER-121912) - not a values mistake, an upstream
+        # Mongo/kernel gate. Postgres is the chart's own first-class alternative
+        # backend (postgresql.enabled), not a workaround bolted on from outside it.
+        mongodb:
+          enabled: false
+        postgresql:
+          enabled: true
+        testkube-api:
           mongodb:
             enabled: false
           postgresql:
             enabled: true
-          testkube-api:
-            mongodb:
-              enabled: false
-            postgresql:
-              enabled: true
-            multinamespace:
-              enabled: true
-        valueFiles:
-          # $-ref resolves relative to that source's checkout ROOT.
-          - $clustercfg/50-platform-cicd/testkube/values-kind-dev.yaml
-    - repoURL: https://github.com/jfillman/gitops-cluster-dev.git
-      targetRevision: main
-      ref: clustercfg
-      # Exists only to be $ref'd above - without this, ArgoCD's directory-source
-      # auto-detection would try to apply every *.yaml in this repo as a raw manifest.
-      directory:
-        exclude: "*"
   destination:
     server: https://kubernetes.default.svc
     namespace: testkube
