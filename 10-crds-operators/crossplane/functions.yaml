@@ -34,6 +34,10 @@ metadata:
 spec:
   package: xpkg.upbound.io/crossplane-contrib/function-patch-and-transform:v0.7.0
 ---
+# 2026-08-24: bumped from v0.1.16 (this template repo had never picked up any
+# post-prototype fixes) to v0.2.4, the current known-good tag - see
+# idp-service-catalog/functions/function-rollout-watcher/README.md's own
+# changelog for what each bump since v0.1.16 fixed.
 apiVersion: pkg.crossplane.io/v1
 kind: Function
 metadata:
@@ -43,4 +47,4 @@ metadata:
     platform.io/subcomponent: crds-operators
     platform.io/origin: ai-rollout
 spec:
-  package: ghcr.io/jfillman/function-rollout-watcher:v0.1.16
+  package: ghcr.io/jfillman/function-rollout-watcher:v0.2.4
