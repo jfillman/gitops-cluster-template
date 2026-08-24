@@ -104,7 +104,11 @@ components:
     #   cluster, since those have no meaning without Crossplane actually running
     #   where the resource lands. See idp/docs/service-catalog-design.md §0.
     scope: attached-tier-only
-  policy: false                  # 30-policy/ has no real content yet on any cluster (Kyverno, not built)
+  policy: false                  # Kyverno + the testkube-secret-usage policy (real as of
+                                  # 2026-08-24). Only meaningful alongside platformCicd:
+                                  # true - the one policy shipped so far governs Testkube
+                                  # TestWorkflow secret usage. Default false since not
+                                  # every cluster runs platform-cicd's Testkube install.
   observability: true
   # platform-cicd's own control plane (Tekton/PaC/the CDEvents broker) — type: upper
   # MUST be false, same invariant as providerGithub above. Only ever true on the one

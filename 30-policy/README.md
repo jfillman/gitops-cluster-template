@@ -1,7 +1,14 @@
 # 30-policy
 
-> **Template note**: this file was carried over from `gitops-cluster-dev`'s own README and describes that cluster's real build history — useful background on how this component works and why, not a to-do list for your new cluster. Treat dates/"live-verified" claims as historical, not something to re-verify on this one.
+Cluster-wide guardrails via Kyverno — real as of 2026-08-24.
 
+- `kyverno/` — the engine (Helm chart, pinned 3.9.0 / appVersion v1.19.0, the first
+  release with the `ValidatingPolicy` CRD generally available).
+- `kyverno-policies/` — plain-manifest `ValidatingPolicy` objects. First one:
+  `testkube-secret-usage.yaml`, closing a real cross-tenant secret-reference gap in
+  Testkube's shared `testkube` namespace — see that file's own header and
+  platform-cicd's ADR-0007/ADR-0008 for the full story.
 
-Cluster-wide guardrails (Kyverno or similar) — per `gitops-strategy.md` §3. Never
-designed in detail in either design doc; genuinely nothing here yet, not even a plan.
+Gated by `components.policy` in `cluster.yaml` (see `cluster.yaml.example`) - only
+meaningful today alongside `components.platformCicd: true`, since the one shipped
+policy governs Testkube TestWorkflow secret usage.

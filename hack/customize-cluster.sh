@@ -75,6 +75,7 @@ SLOTH="$(yq_bool '.components.sloth')"
 SERVICE_CATALOG_ENABLED="$(yq_bool '.components.serviceCatalog.enabled')"
 SERVICE_CATALOG_SCOPE="$(yq -r '.components.serviceCatalog.scope' "${CONFIG}")"
 OBSERVABILITY="$(yq_bool '.components.observability')"
+POLICY="$(yq_bool '.components.policy')"
 
 log "0/5 - target cluster: ${CLUSTER_NAME} (type: ${TYPE})"
 
@@ -115,6 +116,7 @@ prune() {
 [ "${ARGO_ROLLOUTS}" = "true" ]    || prune "10-crds-operators/argo-rollouts"
 [ "${CONTOUR}" = "true" ]          || prune "10-crds-operators/contour"
 [ "${SLOTH}" = "true" ]            || prune "10-crds-operators/sloth"
+[ "${POLICY}" = "true" ]           || prune "30-policy"
 [ "${OBSERVABILITY}" = "true" ]    || prune "40-observability"
 [ "${PLATFORM_CICD}" = "true" ]    || prune "50-platform-cicd"
 
