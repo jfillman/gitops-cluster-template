@@ -22,5 +22,7 @@ spec:
     server: https://kubernetes.default.svc
     namespace: crossplane-system
   syncPolicy:
+    automated:
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
