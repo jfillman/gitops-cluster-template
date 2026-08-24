@@ -49,7 +49,28 @@ spec:
       helm:
         releaseName: testkube
         valuesObject:
+          # Postgres instead of the chart's default Mongo backend - live-verified 2026-
+          # 08-24 that testkube-mongodb (docker.io/kubeshop/bitnami-mongodb:8.3.4)
+          # hard-refuses to start on this fleet's kind-node kernel: "MongoDB cannot
+          # start: Linux kernel versions 6.19 and newer has a known incompatibility
+          # with this version of MongoDB" (jira.mongodb.org/browse/SERVER-121912). Not
+          # a values mistake, an upstream Mongo/kernel gate - kept as a chart-level
+          # default here (not per-cluster values-kind-dev.yaml state) since every kind
+          # cluster on this fleet's host shares the same kernel. Postgres is the
+          # chart's own first-class alternative backend (postgresql.enabled), not a
+          # workaround bolted on from outside it. If a future cluster genuinely runs on
+          # a different host with an older kernel, override back to Mongo in that
+          # cluster's own values-kind-dev.yaml (this Application's second source), not
+          # by re-editing this file.
+          mongodb:
+            enabled: false
+          postgresql:
+            enabled: true
           testkube-api:
+            mongodb:
+              enabled: false
+            postgresql:
+              enabled: true
             multinamespace:
               enabled: true
         valueFiles:
@@ -70,3 +91,10 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      # Required, not optional: live-verified 2026-08-24 that plain client-side apply
+      # fails outright on this chart's testworkflows.testworkflows.testkube.io CRD -
+      # "metadata.annotations: Too long: may not be more than 262144 bytes" from the
+      # kubectl.kubernetes.io/last-applied-configuration annotation client-side apply
+      # generates, which duplicates that CRD's large OpenAPI schema. Server-side apply
+      # doesn't use that annotation at all.
+      - ServerSideApply=true
