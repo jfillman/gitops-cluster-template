@@ -82,6 +82,16 @@ spec:
           install: false
         dex:
           enabled: false
+        # Chart-level flag, separate from the raw configs.params.applicationsetcontroller.
+        # namespaces key below - that key alone only tells the controller WHICH namespaces
+        # to watch; it does not grant the RBAC needed to do it. Without this, the
+        # applicationset-controller's own Role stays namespace-scoped (no ClusterRole/
+        # ClusterRoleBinding rendered at all) and it fails outright trying to list
+        # Applications across the *-cicd glob: "applications.argoproj.io is forbidden:
+        # ... cannot list resource \"applications\" in API group \"argoproj.io\" at the
+        # cluster scope" (found live 2026-08-24 moving ephemeral-envs.yaml's watch here).
+        applicationSet:
+          allowAnyNamespace: true
         configs:
           params:
             reposerver.repo.cache.expiration: 3m
