@@ -1,0 +1,26 @@
+# Kyverno's own controllers ship with RBAC for built-in Kubernetes kinds only - a
+# policy matching a CRD (testworkflows.testkube.io, see testkube-secret-usage.yaml)
+# needs its own supplemental grant. Found live 2026-08-24: without this, Kyverno itself
+# reported "Policy is not ready for reporting, missing permissions: get/list/watch
+# testworkflows.testkube.io/v1, Resource=testworkflows".
+#
+# Aggregated via the real label convention (confirmed live against this cluster's own
+# installed ClusterRoles' aggregationRule.clusterRoleSelectors, not assumed from docs):
+# rbac.kyverno.io/aggregate-to-{admission,background,reports}-controller aggregate into
+# kyverno:{admission,background,reports}-controller respectively. Granting all three -
+# read-only (get/list/watch), costs nothing security-wise, and background/reports
+# controllers are what actually needed this (periodic re-scan and PolicyReport
+# generation over existing TestWorkflow objects, not the CREATE/UPDATE admission check
+# itself, which operates on the request object directly).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kyverno-testworkflows-viewer
+  labels:
+    rbac.kyverno.io/aggregate-to-admission-controller: "true"
+    rbac.kyverno.io/aggregate-to-background-controller: "true"
+    rbac.kyverno.io/aggregate-to-reports-controller: "true"
+rules:
+  - apiGroups: ["testworkflows.testkube.io"]
+    resources: ["testworkflows"]
+    verbs: ["get", "list", "watch"]
