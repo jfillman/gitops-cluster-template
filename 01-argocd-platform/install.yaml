@@ -31508,21 +31508,24 @@ metadata:
 # `argocd.argoproj.io/secret-type: scm-creds` (set by ephemeral-envs.yaml's
 # pr-token-refresher CronJob at creation time).
 #
-# applicationsetcontroller.enable.scm.providers: "false" - required the moment
-# applicationsetcontroller.namespaces is set to anything, or the controller refuses to
+# applicationsetcontroller.namespaces set to anything requires either
+# --enable-scm-providers=false or --allowed-scm-providers, or the controller refuses to
 # start at all ("When enabling applicationset in any namespace using
 # applicationset-namespaces, you must either set --enable-scm-providers=false or specify
 # --allowed-scm-providers"). Found live 2026-08-23 recreating kind-dev from scratch after
-# an etcd WAL-corruption crash - this instance's SCM generators (none of this repo's
-# ApplicationSets use one, only git/list/matrix generators) were never exercised on the
-# original 2026-08-13 bootstrap, so the missing flag went unnoticed until a truly clean
-# install hit it. Safe to disable outright: nothing here needs SCM-provider generators.
+# an etcd WAL-corruption crash. A same-day fix here first disabled SCM providers outright
+# on the (wrong) assumption that nothing in this repo used one - ephemeral-envs.yaml's
+# `-pr-envs` ApplicationSet uses exactly a pullRequest/github SCM generator, so that
+# disabled every PR-based ephemeral environment ("failed to select pull request service
+# provider: scm providers are disabled", found live testing that feature). Scoping to
+# just GitHub's API via allowed.scm.providers satisfies the security gate without
+# disabling the generator this repo actually depends on.
 data:
   reposerver.repo.cache.expiration: 3m
   application.namespaces: "*-cicd"
   applicationsetcontroller.namespaces: "*-cicd"
   applicationsetcontroller.enable.tokenref.strict.mode: "true"
-  applicationsetcontroller.enable.scm.providers: "false"
+  applicationsetcontroller.allowed.scm.providers: "https://api.github.com"
 ---
 apiVersion: v1
 kind: ConfigMap
