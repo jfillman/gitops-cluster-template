@@ -76,3 +76,9 @@ spec:
       # generates, which duplicates that CRD's large OpenAPI schema. Server-side apply
       # doesn't use that annotation at all.
       - ServerSideApply=true
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: testkube-nats
+      jsonPointers:
+        - /spec/volumeClaimTemplates
