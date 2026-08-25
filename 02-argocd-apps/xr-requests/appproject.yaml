@@ -45,8 +45,7 @@ spec:
   # Explicit kinds, not a wildcard on the catalog.idp.io group - Attached-tier XRDs
   # (SLO, future Redis/OAuthServer) are also in this group but are deliberately NOT
   # meant to go through xr-requests/ (they're values.yaml fields in the app's own
-  # gitops repo, rendered by the idp-application chart). Add SpringBootApplication here
-  # when it's built, not before.
+  # gitops repo, rendered by the idp-application chart).
   #
   # SecretStore added 2026-08-18 (Item 8's second multi-cluster revision) - real gap
   # caught live the first time NodeJSApplication's own new secretstore-xr.yaml
@@ -54,9 +53,16 @@ spec:
   # project idp-onboarding". Unlike SLO/Redis/OAuthServer, SecretStore genuinely does
   # go through xr-requests/ now (NodeJSApplication/ApplicationEnvironment both commit
   # it directly) - not a values.yaml/chart-rendered Attached resource anymore.
+  #
+  # SpringBootApplication added 2026-08-24 - second Bootstrap-tier language XRD,
+  # same shape/locality as NodeJSApplication (dev-only, hence absent from
+  # gitops-cluster-kind-prod's narrower copy of this file). Hit the same
+  # "not permitted in project idp-onboarding" gap live on the first order-api commit.
   namespaceResourceWhitelist:
     - group: catalog.idp.io
       kind: NodeJSApplication
+    - group: catalog.idp.io
+      kind: SpringBootApplication
     - group: catalog.idp.io
       kind: ApplicationEnvironment
     - group: catalog.idp.io
