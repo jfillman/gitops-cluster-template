@@ -41,3 +41,11 @@ spec:
       # the 262144-byte per-object annotation cap. Applying it here preemptively rather
       # than waiting to rediscover the same failure live.
       - ServerSideApply=true
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jsonPointers:
+        - /metadata/labels
+        - /metadata/annotations
+      managedFieldsManagers:
+        - kube-apiserver
