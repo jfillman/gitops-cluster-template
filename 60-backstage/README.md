@@ -19,10 +19,18 @@ hand-deployed straight to `kind-man`.
     --from-literal=postgres-password="$(openssl rand -base64 24)" \
     --from-literal=password="$(openssl rand -base64 24)"
   ```
-- `backstage/` — not yet added. Waiting on the Backstage source repo's first real
-  image (`ghcr.io/jfillman/backstage`) to exist before writing a Deployment that would
-  otherwise just crashloop on a nonexistent tag. See `idp/docs/backstage-design.md`'s
-  rollout phases.
+- `backstage/` — the app itself, real as of 2026-08-26. Plain Deployment/Service (no
+  officially-maintained Backstage Helm chart exists to adopt), pinned to the real
+  first image the app's own onboarded CI pipeline published
+  (`ghcr.io/jfillman/backstage:1.0.0-0b52ebe`). Manually bump the tag here after each
+  new CI build for now - no GitOps image-updater wired up yet. `POSTGRES_*` env vars
+  wire it to `postgres/`'s own instance; `imagePullSecrets: registry-credentials`
+  needs the `backstage` namespace's `platform.io/managed-secrets: "true"` label
+  (declared in this directory's own `Namespace` manifest) for kind-man's
+  `registry-credentials` `ClusterExternalSecret` to populate it - the image is
+  genuinely private. `app.baseUrl`/`backend.baseUrl` are still the image's baked-in
+  `localhost` defaults - no real kind-man ingress hostname decided yet, see
+  `idp/docs/backstage-design.md`; reachable today only via `kubectl port-forward`.
 
 Gated by `components.backstage` in `cluster.yaml` (see `cluster.yaml.example`) -
 `kind-man` is the only cluster that should ever set this `true`, matching the singleton
