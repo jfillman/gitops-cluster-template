@@ -114,3 +114,12 @@ components:
   # MUST be false, same invariant as providerGithub above. Only ever true on the one
   # dev cluster that runs it (today: kind-dev).
   platformCicd: false
+  # The fleet's developer portal (idp/docs/backstage-design.md) — upstream Backstage,
+  # its own dedicated Postgres, deployed straight to this cluster rather than through
+  # the usual tenant/service-catalog flow. Same singleton convention as
+  # secrets.infisicalHost/platformCicd above: exactly one cluster in the fleet should
+  # ever set this true (today: kind-man) — not enforced by this script the same hard
+  # way providerGithub/platformCicd are, since nothing about running it elsewhere
+  # would corrupt shared state the way those two would, but still a real fleet-wide
+  # convention, not a per-cluster style choice.
+  backstage: false

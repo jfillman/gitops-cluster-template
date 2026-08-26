@@ -76,6 +76,7 @@ SERVICE_CATALOG_ENABLED="$(yq_bool '.components.serviceCatalog.enabled')"
 SERVICE_CATALOG_SCOPE="$(yq -r '.components.serviceCatalog.scope' "${CONFIG}")"
 OBSERVABILITY="$(yq_bool '.components.observability')"
 POLICY="$(yq_bool '.components.policy')"
+BACKSTAGE="$(yq_bool '.components.backstage')"
 
 log "0/5 - target cluster: ${CLUSTER_NAME} (type: ${TYPE})"
 
@@ -119,6 +120,7 @@ prune() {
 [ "${POLICY}" = "true" ]           || prune "30-policy"
 [ "${OBSERVABILITY}" = "true" ]    || prune "40-observability"
 [ "${PLATFORM_CICD}" = "true" ]    || prune "50-platform-cicd"
+[ "${BACKSTAGE}" = "true" ]        || prune "60-backstage"
 
 if [ "${TYPE}" = "upper" ]; then
   # Lower/ephemeral environments are a dev-cluster-only self-service tier by design —

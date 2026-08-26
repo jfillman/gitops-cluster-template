@@ -1,0 +1,55 @@
+# Backstage's dedicated Postgres - see this directory's own README for why a bundled
+# instance now rather than waiting on the not-yet-built shared `Database` XRD
+# (idp/docs/service-catalog-design.md Item 7).
+#
+# oci://registry-1.docker.io/bitnamicharts/postgresql, pinned 18.8.13 (confirmed live
+# via `helm pull` 2026-08-26 - Bitnami's classic charts.bitnami.com index is
+# deprecated, OCI is the only real distribution channel now).
+#
+# auth.existingSecret: confirmed via this chart's own values.yaml documentation that
+# setting this makes postgresPassword/password/replicationPassword genuinely ignored,
+# read from the Secret instead - unlike Infisical's own install (see
+# 10-crds-operators/infisical/application.yaml's header), where that chart's own app
+# container reads .Values.postgresql.auth.password directly regardless of
+# existingSecret, a real bug in that specific chart. No plaintext credential in this
+# file. NOT yet verified: exactly how Backstage's own backend.database config will be
+# pointed at this same Secret (postgres-password/password keys) - that's real work for
+# whenever the backstage/ Application in this same directory gets written, once the
+# app image exists (see this directory's own README).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backstage-postgres
+  namespace: argocd
+  labels:
+    platform.io/component: cluster-config
+    platform.io/subcomponent: backstage
+spec:
+  project: default
+  source:
+    repoURL: registry-1.docker.io/bitnamicharts/postgresql
+    chart: postgresql
+    targetRevision: 18.8.13
+    helm:
+      releaseName: backstage-postgres
+      valuesObject:
+        architecture: standalone
+        auth:
+          existingSecret: backstage-postgres-credentials
+          username: backstage
+          database: backstage
+        primary:
+          persistence:
+            size: 8Gi
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: backstage
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
