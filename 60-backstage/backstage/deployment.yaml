@@ -96,6 +96,13 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
+            # Explicit numeric UID required: the image's own USER directive is the
+            # named "node" user, and Kubernetes can't verify runAsNonRoot against a
+            # name - real CreateContainerConfigError hit live on first deploy
+            # ("image has non-numeric user (node), cannot verify user is non-root").
+            # 1000 confirmed against the actual pulled image's /etc/passwd, not
+            # assumed from convention alone.
+            runAsUser: 1000
             capabilities:
               drop: ["ALL"]
 ---
