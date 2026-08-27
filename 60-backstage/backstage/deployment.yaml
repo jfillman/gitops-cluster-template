@@ -57,7 +57,7 @@ spec:
         - name: registry-credentials
       containers:
         - name: backstage
-          image: ghcr.io/jfillman/backstage:1.0.0-0b52ebe
+          image: ghcr.io/jfillman/backstage:1.0.0-e7695bb
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
