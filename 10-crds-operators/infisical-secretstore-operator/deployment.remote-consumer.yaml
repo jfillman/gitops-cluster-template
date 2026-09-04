@@ -20,12 +20,15 @@
 # confirmed working) - NOT substituted per-cluster by customize-cluster.sh, because
 # every remote-consumer cluster in this fleet talks to the SAME one Infisical
 # instance (idp/docs/service-catalog-design.md Item 8: Infisical is shared platform
-# infra, installed once, on kind-dev only) and shares the same org. That said,
-# INFISICAL_API_URL is a kind-cluster-local-sandbox NodePort address
-# (dev-control-plane's own podman-network IP) that is NOT stable - confirmed to
-# drift across kind-dev restarts/rebuilds, non-monotonically (has moved .2 -> .5 and
-# back). Verify it's still correct against the live cluster before/after bootstrapping
-# a new remote-consumer cluster - don't assume this committed value is current. A
+# infra, installed once, on kind-dev only) and shares the same org. INFISICAL_API_URL
+# uses the dev.kiac.local hostname (updated 2026-09-04, was a raw podman-network IP
+# that's non-monotonic and drifts across kind-dev restarts/rebuilds - stale from day
+# one for any cluster provisioned off this template, and confirmed live-broken on
+# kind-prod/kind-man before the hostAliases block below was added). CoreDNS can't
+# resolve that hostname on its own though (never consults the Mac host's
+# /etc/hosts) - hence hostAliases. Verify the IP is still correct against the live
+# cluster before/after bootstrapping a new remote-consumer cluster - don't assume
+# this committed value is current; refresh-kiac-hosts.sh heals it going forward. A
 # real routable endpoint (VPN/peering/ingress) between genuinely separate clusters
 # wouldn't have this problem; see infisical-nodeport.yaml's own header.
 #
@@ -53,6 +56,10 @@ spec:
         app: infisical-secretstore-operator
     spec:
       serviceAccountName: infisical-secretstore-operator
+      hostAliases:
+        - ip: "192.168.64.11"
+          hostnames:
+            - "dev.kiac.local"
       containers:
         - name: operator
           image: ghcr.io/jfillman/infisical-secretstore-operator:dev
@@ -61,7 +68,7 @@ spec:
             - name: USER
               value: infisical-secretstore-operator
             - name: INFISICAL_API_URL
-              value: http://10.89.0.2:31800
+              value: http://dev.kiac.local:31800
             - name: INFISICAL_ORG_ID
               value: "9144c116-d1eb-4cea-bac9-9b5272035ea7"
             - name: INFISICAL_ADMIN_TOKEN

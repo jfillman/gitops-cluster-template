@@ -9,6 +9,15 @@
 # than 262144 bytes") - the same last-applied-configuration annotation size limit
 # 01-argocd-platform/README.md documents hitting on ArgoCD's own applicationsets.argoproj.io
 # CRD. Same fix, applied the ArgoCD-Application-native way here.
+#
+# hostAliases (added 2026-09-04): a remote-consumer cluster's own
+# ../cluster-secret-store.yaml reaches Infisical via `dev.kiac.local:31800`, which
+# CoreDNS can't resolve (that hostname only ever lands in the laptop's own
+# /etc/hosts via refresh-kiac-hosts.sh) - a pod never consults the host's /etc/hosts.
+# Confirmed live on kind-prod/kind-man: InvalidProviderConfig / continuous
+# NameResolutionError until this was added. IP needs the same refresh-kiac-hosts.sh
+# healing as every other kiac IP reference in this fleet - not needed on the
+# infisicalHost: true variant (kind-dev), where Infisical is reached in-cluster.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -25,6 +34,11 @@ spec:
     targetRevision: 2.8.0
     helm:
       releaseName: external-secrets
+      values: |
+        hostAliases:
+          - ip: "192.168.64.11"
+            hostnames:
+              - "dev.kiac.local"
   destination:
     server: https://kubernetes.default.svc
     namespace: external-secrets
