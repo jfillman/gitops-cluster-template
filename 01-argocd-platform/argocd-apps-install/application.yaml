@@ -260,6 +260,18 @@ spec:
               hs.status = "Healthy"
               hs.message = ""
               return hs
+            # Same PVC-health override, and same rationale, as 01-argocd-platform/
+            # install.yaml's own argocd-cm - see that ConfigMap's inline comment (right
+            # above this same key) for the full write-up. Two separate ArgoCD installs,
+            # two separate ConfigMaps (see this file's own comment above
+            # accounts.backstage/resource.customizations.health.argoproj.io_Rollout for
+            # why both need every override independently), so this one needs it too
+            # rather than assuming the platform instance's copy is enough.
+            resource.customizations.health.PersistentVolumeClaim: |
+              hs = {}
+              hs.status = "Healthy"
+              hs.message = "Not tracking Bound status - WaitForFirstConsumer PVCs stay Pending until first real consumer schedules, which is expected, not a failure (see comment above this key in argocd-cm)."
+              return hs
             resource.customizations: |
               catalog.idp.io/*:
                 health.lua: |
