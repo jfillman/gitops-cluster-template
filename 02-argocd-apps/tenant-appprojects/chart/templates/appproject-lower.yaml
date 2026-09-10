@@ -22,10 +22,10 @@ metadata:
   name: {{ .Values.appName }}-lower
   namespace: argocd-apps
   labels:
-    platform.io/component: cluster-config
-    platform.io/subcomponent: tenant-onboarding
-    platform.io/app: {{ .Values.appName }}
-    platform.io/env-tier: lower
+    hanger.io/component: cluster-config
+    hanger.io/subcomponent: tenant-onboarding
+    hanger.io/app: {{ .Values.appName }}
+    hanger.io/env-tier: lower
 spec:
   description: "Per-app lower-env (dev-cluster-only) AppProject for {{ .Values.appName }}, gitops-strategy.md §10"
   sourceRepos:
