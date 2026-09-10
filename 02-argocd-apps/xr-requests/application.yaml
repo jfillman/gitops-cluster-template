@@ -10,8 +10,8 @@ metadata:
   name: xr-requests-appproject
   namespace: argocd
   labels:
-    hanger.io/component: cluster-config
-    hanger.io/subcomponent: xr-requests
+    hangar.io/component: cluster-config
+    hangar.io/subcomponent: xr-requests
 spec:
   project: default
   source:

@@ -51,10 +51,10 @@ metadata:
   name: {{ .Values.appName }}-lower-envs
   namespace: argocd-apps
   labels:
-    hanger.io/component: cluster-config
-    hanger.io/subcomponent: tenant-onboarding
-    hanger.io/app: {{ .Values.appName }}
-    hanger.io/env-tier: lower
+    hangar.io/component: cluster-config
+    hangar.io/subcomponent: tenant-onboarding
+    hangar.io/app: {{ .Values.appName }}
+    hangar.io/env-tier: lower
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=invalid"]
@@ -68,11 +68,11 @@ spec:
     metadata:
       name: "{{ .Values.appName }}-{{ "{{" }}.envName{{ "}}" }}"
       labels:
-        hanger.io/component: cluster-config
-        hanger.io/subcomponent: tenant-onboarding
-        hanger.io/app: {{ .Values.appName }}
-        hanger.io/env: "{{ "{{" }}.envName{{ "}}" }}"
-        hanger.io/env-tier: lower
+        hangar.io/component: cluster-config
+        hangar.io/subcomponent: tenant-onboarding
+        hangar.io/app: {{ .Values.appName }}
+        hangar.io/env: "{{ "{{" }}.envName{{ "}}" }}"
+        hangar.io/env-tier: lower
       # Cascade-deletes this env's real resources, AND the namespace itself, if the
       # developer removes their own platform/envs/<file>.yaml - idp-application now
       # renders an explicit Namespace object (v0.3.40+, see that chart's own
@@ -128,7 +128,7 @@ spec:
               # once the chart renders its own Namespace object.
               namespace:
                 labels:
-                  hanger.io/managed-secrets: "true"
+                  hangar.io/managed-secrets: "true"
             valueFiles:
               # Confirmed live (two real failures getting here, both left as history
               # in this comment since the exact shape of ArgoCD's git-files-generator
