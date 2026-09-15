@@ -1,5 +1,12 @@
 # gitops-cluster-template
 
+> **Deprecated.** This repo was renamed and superseded by
+> [`apron`](https://github.com/jfillman/apron) on 2026-09-08 (full history
+> preserved there via a clone-and-push rename). All new work happens in
+> `apron` — this repo is kept only for reference and should not receive
+> further commits. (Confirmed 2026-09-15: real fixes had drifted in here
+> after the rename anyway; they've been ported to `apron`.)
+
 Gold-standard starting point for a new `gitops-cluster-<name>` repo — per
 `idp/docs/gitops-strategy.md` §1's per-cluster repo shape, and closes the
 "repo-scaffolding script" gap that doc flagged as unsolved. Standing up a new cluster
